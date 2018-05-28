@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	//util "gx/ipfs/QmNiJuT8Ja3hMVpBHXv3Q6dwmperaQ6JjLtpMQgMCD7xvx/go-ipfs-util"
+
 	"github.com/ipfs/go-ipfs/core"
 	"github.com/ipfs/go-ipfs/repo/config"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
@@ -17,32 +19,37 @@ import (
 var (
 	tmpNodeDir string
 	tmpNode    = false
+
+	node *core.IpfsNode
 )
 
-func NewMobileNode(ctx context.Context, repoPath string, cacheNode bool) (*core.IpfsNode, error) {
+func NewMobileNode(ctx context.Context, repoPath string, privateKey string, bootstarpurl []string, cacheNode bool) (*core.IpfsNode, error) {
 
-	dir := repoPath + "ipfs-shell"
-
-	node, err := LoadMobileNode(ctx, dir)
+	node, err := loadMobileNode(ctx, repoPath, privateKey, bootstarpurl)
 	if err != nil {
-		node, err = CreateMobileNode(ctx, dir)
-		if err != nil {
-			return nil, err
-		}
-	}
 
-	tmpNodeDir = dir
+		return nil, err
+	}
+	tmpNodeDir = repoPath
 
 	tmpNode = cacheNode
+
 	return node, nil
 }
 
-func LoadMobileNode(ctx context.Context, repoPath string) (*core.IpfsNode, error) {
+func loadMobileNode(ctx context.Context, repoPath string, privateKey string, bootstarpurl []string) (*core.IpfsNode, error) {
 
 	r, err := fsrepo.Open(repoPath)
 	if err != nil {
-		mobileLog.Print("opening fsrepo failed: %s", err)
-		return nil, fmt.Errorf("opening fsrepo failed: %s", err)
+		//mobileLog.Print("opening fsrepo failed: %s", err)
+		//return nil, fmt.Errorf("opening fsrepo failed: %s", err)
+		createMobileNode(ctx, repoPath, privateKey, bootstarpurl)
+
+		r, err = fsrepo.Open(repoPath)
+		if err != nil {
+			mobileLog.Print("opening fsrepo failed: %s", err)
+			return nil, fmt.Errorf("opening fsrepo failed: %s", err)
+		}
 	}
 
 	node, err := core.NewNode(ctx, &core.BuildCfg{
@@ -66,7 +73,7 @@ func LoadMobileNode(ctx context.Context, repoPath string) (*core.IpfsNode, error
 	return node, nil
 }
 
-func CreateMobileNode(ctx context.Context, repoPath string) (*core.IpfsNode, error) {
+func createMobileNode(ctx context.Context, repoPath string, privateKey string, bootstarpurl []string) error {
 	//dir, err := ioutil.TempDir(repoPath, "ipfs-shell")
 	//if err != nil {
 	//	mobileLog.Print("failed to get temp dir: %s", err)
@@ -76,16 +83,44 @@ func CreateMobileNode(ctx context.Context, repoPath string) (*core.IpfsNode, err
 	cfg, err := config.Init(ioutil.Discard, 1024)
 	if err != nil {
 		mobileLog.Print("config.Init(ioutil.Discard, 1024): %s", err)
-		return nil, err
+		return err
+	}
+
+	if len(bootstarpurl) > 0 {
+
+		bootstrapPeers, err := privateBootstrapPeers(bootstarpurl)
+		if err != nil {
+			return err
+		}
+
+		cfg.Bootstrap = config.BootstrapPeerStrings(bootstrapPeers)
 	}
 
 	err = fsrepo.Init(repoPath, cfg)
 	if err != nil {
 		mobileLog.Print("failed to init ephemeral node: %s", err)
-		return nil, fmt.Errorf("failed to init ephemeral node: %s", err)
+		return fmt.Errorf("failed to init ephemeral node: %s", err)
 	}
 
-	repo, err := fsrepo.Open(repoPath)
+	if len(privateKey) == 64 {
+		keyfile := ipfspath + "/swarm.key"
+
+		{
+
+			strkey := "/key/swarm/psk/1.0.0/" + "\n"
+			strkey += "/base16/" + "\n"
+
+			strkey += privateKey
+
+			err = ioutil.WriteFile(keyfile, []byte(strkey), 0666)
+			if err != nil {
+				mobileLog.Print("ioutil.WriteFile:[%s] %s", keyfile, err)
+				return err
+			}
+		}
+	}
+
+	/*repo, err := fsrepo.Open(repoPath)
 	if err != nil {
 		mobileLog.Print("fsrepo.Open(dir): %s", err)
 		return nil, err
@@ -94,7 +129,17 @@ func CreateMobileNode(ctx context.Context, repoPath string) (*core.IpfsNode, err
 	return core.NewNode(ctx, &core.BuildCfg{
 		Online: true,
 		Repo:   repo,
-	})
+	})*/
+	return nil
+}
+
+func privateBootstrapPeers(bootstarpurl []string) ([]config.BootstrapPeer, error) {
+	ps, err := config.ParseBootstrapPeers(bootstarpurl)
+	if err != nil {
+		return nil, fmt.Errorf(`failed to parse hardcoded bootstrap peers: %s
+This is a problem with the ipfs codebase. Please report it to the dev team.`, err)
+	}
+	return ps, nil
 }
 
 func destorytemp(path string) {
@@ -122,6 +167,11 @@ func destorytemp(path string) {
 
 }
 func ClearNode() {
+	if node != nil {
+		node.Close()
+		node = nil
+	}
+
 	if tmpNode == true {
 		destorytemp(tmpNodeDir)
 	}

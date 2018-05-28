@@ -1,6 +1,7 @@
 package ipfsApi
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -22,9 +23,20 @@ var (
 	mshell *Shell
 
 	ipfspath = "/storage/emulated/0/Android/data/org.golang.todo.github_com_ipfs_go_ipfs_mobile/files/"
+
+	bootstarps []string
 )
 
-func Api_InitNode(tmpNode bool) error {
+func Api_SetBoostarp(bootstarpurl string) {
+	bootstarps = append(bootstarps, bootstarpurl)
+}
+
+func Api_InitNode(tmpNode bool, privateKey string) error {
+
+	if mshell != nil {
+		mobileLog.Print("InitNode repeated finish===")
+		return nil
+	}
 
 	err := mobilePath.InitMobilePath()
 	if err != nil {
@@ -40,9 +52,12 @@ func Api_InitNode(tmpNode bool) error {
 		return err
 	}
 
+	ipfspath = mobilePath.GetExternStorageFilePath() + "ipfs-shell/"
+	os.Setenv("IPFS_PATH", ipfspath)
+
 	mobileLog.Print("os Getenv succeed===", ipfspath)
 
-	shell, err := newInternalShell(tmpNode)
+	shell, err := newInternalShell(tmpNode, privateKey, bootstarps)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
@@ -54,9 +69,27 @@ func Api_InitNode(tmpNode bool) error {
 }
 
 func Api_CloseNode() {
+	mshell.CloseShell()
 	ClearNode()
 	mobileLog.CloseMobileLog()
+	mshell = nil
+	bootstarps = []string{}
+}
 
+func Api_ServeHTTPGateway() error {
+
+	if mshell == nil {
+		return errors.New("shell is null")
+	}
+	//var gwErrc <-chan error
+
+	var err error
+	_, err = mshell.ServeHTTPGateway(ipfspath)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func Api_Get(path string, outfile string) {
@@ -92,7 +125,7 @@ func Api_Catching(path string) []byte {
 	return buf
 }
 
-func newInternalShell(tmpNode bool) (*Shell, error) {
+func newInternalShell(tmpNode bool, privateKey string, bootstarpurl []string) (*Shell, error) {
 	ctx, _ := context.WithCancel(context.Background())
 
 	// Cancel the ipfs node context if the process gets interrupted or killed.
@@ -111,7 +144,7 @@ func newInternalShell(tmpNode bool) (*Shell, error) {
 
 	mobileLog.Print("mobileShell.NewMobileNode---")
 
-	node, err := NewMobileNode(ctx, ipfspath, tmpNode)
+	node, err := NewMobileNode(ctx, ipfspath, privateKey, bootstarpurl, tmpNode)
 	if err != nil {
 		mobileLog.Print("NewMobileNode: %s", err)
 		return nil, err
