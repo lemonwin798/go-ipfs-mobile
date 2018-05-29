@@ -24,5 +24,7 @@
 
 IpfsApi.api_InitNode(false, "816930a90d14bb804a51f3e7fb867d3f3ce169b688211b5157a0ef40137b167a");
 初始化ipfs节点
+
 第一个参数，如果是长期节点，则为false,如果为true则是临时节点
+
 第二个参数，私链的密钥，如果用使用ipfs公网，则填""空字符串即可
