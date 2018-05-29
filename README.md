@@ -35,6 +35,9 @@ $ ipfs daemon
 添加sprite.png
 $ ipfs add sprite.png
 
+3.
+ijkplayer-k0.8.8是基于ipfs和ijkplayer的播放器示例，支持私链下的ipfs网络播放，支持基于m3u8的ts流播放
+
 
 安装：
 
