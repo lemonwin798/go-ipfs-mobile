@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	//"sync"
+	"mime"
 
 	"gx/ipfs/QmRK2LxanhK2gZq6k6R7vk5ZoYZk8ULSSTB7FzDsMUX6CB/go-multiaddr-net"
 	ma "gx/ipfs/QmWWQ2Txc2c6tqjsBpzg5Ar652cHPGNsQQp2SejkNmkUMb/go-multiaddr"
@@ -15,7 +16,7 @@ import (
 
 	"github.com/ipfs/go-ipfs/core"
 	"github.com/lemonwin798/go-ipfs-mobile/mobile-log"
-	"golang.org/x/net/context"
+	//"golang.org/x/net/context"
 )
 
 // Interface ...
@@ -31,23 +32,26 @@ type Interface interface {
 
 // Shell ...
 type Shell struct {
-	ctx         context.Context
+	//ctx         context.Context
 	node        *core.IpfsNode
 	chanGateway chan error
+	gwLis       manet.Listener
 }
 
 // func NewReadOnlyShell() *Shell {}
 
 func NewShell(node *core.IpfsNode) *Shell {
-	return NewShellWithContext(node, context.Background())
+	//return NewShellWithContext(node, context.Background())
+	return &Shell{node, nil, nil}
 }
 
-func NewShellWithContext(node *core.IpfsNode, ctx context.Context) *Shell {
-	return &Shell{ctx, node, nil}
-}
+//func NewShellWithContext(node *core.IpfsNode, ctx context.Context) *Shell {
+//	return &Shell{ctx, node, nil, nil}
+//}
 
 func (s *Shell) ServeHTTPGateway(repoPath string) (<-chan error, error) {
-	if s.chanGateway != nil {
+	mobileLog.Print("ServeHTTPGateway begin===\n")
+	if s.gwLis != nil {
 		mobileLog.Print("ServeHTTPGateway repeated===\n")
 		return nil, nil
 	}
@@ -67,13 +71,13 @@ func (s *Shell) ServeHTTPGateway(repoPath string) (<-chan error, error) {
 	//	writable = cfg.Gateway.Writable
 	//}
 
-	gwLis, err := manet.Listen(gatewayMaddr)
+	s.gwLis, err = manet.Listen(gatewayMaddr)
 	if err != nil {
 		return nil, fmt.Errorf("serveHTTPGateway: manet.Listen(%s) failed: %s", gatewayMaddr, err)
 	}
 	mobileLog.Print("manet.Listen===" + cfg.Addresses.Gateway + "\n")
 	// we might have listened to /tcp/0 - lets see what we are listing on
-	gatewayMaddr = gwLis.Multiaddr()
+	gatewayMaddr = s.gwLis.Multiaddr()
 
 	if writable {
 		fmt.Printf("Gateway (writable) server listening on %s\n", gatewayMaddr)
@@ -104,9 +108,14 @@ func (s *Shell) ServeHTTPGateway(repoPath string) (<-chan error, error) {
 		opts = append(opts, corehttp.RedirectOption("", cfg.Gateway.RootRedirect))
 	}
 
+	//在播放ts流的时候，如果不设置数据类型，则fs.go的serveContent函数每次都会把ts在内存中读取出来，进行类型匹配，
+	//这在手机上会造成大量的性能消耗，从而引发客户端连接异常断开，具体原因不明
+	mime.AddExtensionType(".ts", "application/octet-stream")
+	mime.AddExtensionType(".m3u8", "text/plain; charset=utf-8")
+
 	chanGateway := make(chan error)
 	go func() {
-		chanGateway <- corehttp.Serve(s.node, gwLis.NetListener(), opts...)
+		chanGateway <- corehttp.Serve(s.node, s.gwLis.NetListener(), opts...)
 		close(chanGateway)
 
 		mobileLog.Print("corehttp.Serve===\n")
@@ -124,7 +133,11 @@ func (s *Shell) CloseShell() {
 		mobileLog.Print("ServeHTTPGateway close===\n")
 		close(s.chanGateway)
 	}
+	if s.gwLis != nil {
+		s.gwLis.Close()
+	}
 	s.chanGateway = nil
+	s.gwLis = nil
 }
 
 /*

@@ -43,7 +43,7 @@ func loadMobileNode(ctx context.Context, repoPath string, privateKey string, boo
 	if err != nil {
 		//mobileLog.Print("opening fsrepo failed: %s", err)
 		//return nil, fmt.Errorf("opening fsrepo failed: %s", err)
-		createMobileNode(ctx, repoPath, privateKey, bootstarpurl)
+		createMobileNode(repoPath, privateKey, bootstarpurl)
 
 		r, err = fsrepo.Open(repoPath)
 		if err != nil {
@@ -53,13 +53,16 @@ func loadMobileNode(ctx context.Context, repoPath string, privateKey string, boo
 	}
 
 	node, err := core.NewNode(ctx, &core.BuildCfg{
-		Online: true,
-		Repo:   r,
+		Online:    true,
+		Repo:      r,
+		Permanent: false,
+		Routing:   core.DHTClientOption,
 	})
 	if err != nil {
 		mobileLog.Print("ipfs NewNode() failed: %s", err)
 		return nil, fmt.Errorf("ipfs NewNode() failed: %s", err)
 	}
+	node.SetLocal(false)
 
 	// TODO: can we bootsrap localy/mdns first and fall back to default?
 	err = node.Bootstrap(core.DefaultBootstrapConfig)
@@ -73,7 +76,7 @@ func loadMobileNode(ctx context.Context, repoPath string, privateKey string, boo
 	return node, nil
 }
 
-func createMobileNode(ctx context.Context, repoPath string, privateKey string, bootstarpurl []string) error {
+func createMobileNode(repoPath string, privateKey string, bootstarpurl []string) error {
 	//dir, err := ioutil.TempDir(repoPath, "ipfs-shell")
 	//if err != nil {
 	//	mobileLog.Print("failed to get temp dir: %s", err)
@@ -95,6 +98,8 @@ func createMobileNode(ctx context.Context, repoPath string, privateKey string, b
 
 		cfg.Bootstrap = config.BootstrapPeerStrings(bootstrapPeers)
 	}
+
+	cfg.Addresses.Gateway = "/ip4/127.0.0.1/tcp/8089"
 
 	err = fsrepo.Init(repoPath, cfg)
 	if err != nil {

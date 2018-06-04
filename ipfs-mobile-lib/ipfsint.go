@@ -1,12 +1,12 @@
 package ipfsApi
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	//"os/signal"
 	"time"
-
-	"context"
 
 	//path "gx/ipfs/QmQa2wf1sLFKkjHCVEbna8y5qhdMjL8vtTJSAc48vZGTer/go-ipfs/path"
 	//cli "gx/ipfs/QmVcLF2CgjQb5BWmYFWsDfxDjbzBfcChfdHRedxeL3dV4K/cli"
@@ -69,7 +69,10 @@ func Api_InitNode(tmpNode bool, privateKey string) error {
 }
 
 func Api_CloseNode() {
-	mshell.CloseShell()
+	if mshell != nil {
+		mshell.CloseShell()
+	}
+
 	ClearNode()
 	mobileLog.CloseMobileLog()
 	mshell = nil
@@ -79,6 +82,7 @@ func Api_CloseNode() {
 func Api_ServeHTTPGateway() error {
 
 	if mshell == nil {
+		mobileLog.Print("Api_ServeHTTPGateway repeated===\n")
 		return errors.New("shell is null")
 	}
 	//var gwErrc <-chan error
@@ -86,6 +90,8 @@ func Api_ServeHTTPGateway() error {
 	var err error
 	_, err = mshell.ServeHTTPGateway(ipfspath)
 	if err != nil {
+
+		mobileLog.Print("mshell.ServeHTTPGateway error===\n", err.Error())
 		return err
 	}
 
@@ -111,7 +117,7 @@ func Api_Get(path string, outfile string) {
 
 func Api_Catching(path string) []byte {
 
-	begin := time.Now()
+	//begin := time.Now()
 
 	buf, err := mshell.Catching(path)
 	if err != nil {
@@ -119,32 +125,29 @@ func Api_Catching(path string) []byte {
 		mobileLog.Print("ipget Catching failed: %s\n", err)
 		os.Exit(2)
 	}
-	d := time.Since(begin)
+	//d := time.Since(begin)
 
-	mobileLog.Print("Catching: gas time: %u", d)
+	//mobileLog.Print("Catching: gas time: %u", d)
 	return buf
 }
 
 func newInternalShell(tmpNode bool, privateKey string, bootstarpurl []string) (*Shell, error) {
-	ctx, _ := context.WithCancel(context.Background())
+	/*ctx, cancel := context.WithCancel(context.Background())
 
 	// Cancel the ipfs node context if the process gets interrupted or killed.
 	// TODO(noffle): is this needed?
-	//go func() {
-	//	interrupts := make(chan os.Signal, 1)
-	//	signal.Notify(interrupts, os.Interrupt, os.Kill)
-	//	<-interrupts
-	//	cancel()
-	//}()
-
-	/*shell, err := tryLocal(ctx)
-	if err == nil {
-		return shell, nil
-	}*/
+	go func() {
+		interrupts := make(chan os.Signal, 1)
+		signal.Notify(interrupts, os.Interrupt, os.Kill)
+		<-interrupts
+		mobileLog.Print("newInternalShell: cancel()")
+		cancel()
+	}()
+	*/
 
 	mobileLog.Print("mobileShell.NewMobileNode---")
 
-	node, err := NewMobileNode(ctx, ipfspath, privateKey, bootstarpurl, tmpNode)
+	node, err := NewMobileNode(context.Background(), ipfspath, privateKey, bootstarpurl, tmpNode)
 	if err != nil {
 		mobileLog.Print("NewMobileNode: %s", err)
 		return nil, err

@@ -9,7 +9,9 @@ import (
 	"github.com/ipfs/go-ipfs/core"
 	dag "github.com/ipfs/go-ipfs/merkledag"
 	"github.com/ipfs/go-ipfs/path"
-	tar "github.com/ipfs/go-ipfs/thirdparty/tar"
+	//tar "github.com/ipfs/go-ipfs/thirdparty/tar"
+	tar "gx/ipfs/QmQine7gvHncNevKtG9QXxf3nXcwSj6aDDmMm52mHofEEp/tar-utils"
+
 	uarchive "github.com/ipfs/go-ipfs/unixfs/archive"
 	unixfsio "github.com/ipfs/go-ipfs/unixfs/io"
 )
@@ -21,7 +23,7 @@ func (s *Shell) Get(ref, outdir string) error {
 		return fmt.Errorf("get: could not parse %q: %s", ref, err)
 	}
 
-	nd, err := core.Resolve(s.ctx, s.node.Namesys, s.node.Resolver, ipfsPath)
+	nd, err := core.Resolve(s.node.Context(), s.node.Namesys, s.node.Resolver, ipfsPath)
 	if err != nil {
 		return fmt.Errorf("get: could not resolve %s: %s", ipfsPath, err)
 	}
@@ -31,7 +33,7 @@ func (s *Shell) Get(ref, outdir string) error {
 		return errors.New("could not cast Node to ProtoNode")
 	}
 
-	r, err := uarchive.DagArchive(s.ctx, pbnd, outdir, s.node.DAG, false, 0)
+	r, err := uarchive.DagArchive(s.node.Context(), pbnd, outdir, s.node.DAG, false, 0)
 	if err != nil {
 		return err
 	}
@@ -51,11 +53,11 @@ func (s *Shell) Cat(p string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cat: could not parse %q: %s", p, err)
 	}
-	nd, err := core.Resolve(s.ctx, s.node.Namesys, s.node.Resolver, ipfsPath)
+	nd, err := core.Resolve(s.node.Context(), s.node.Namesys, s.node.Resolver, ipfsPath)
 	if err != nil {
 		return nil, fmt.Errorf("cat: could not resolve %s: %s", ipfsPath, err)
 	}
-	dr, err := unixfsio.NewDagReader(s.ctx, nd, s.node.DAG)
+	dr, err := unixfsio.NewDagReader(s.node.Context(), nd, s.node.DAG)
 	if err != nil {
 		return nil, fmt.Errorf("cat: failed to construct DAG reader: %s", err)
 	}
